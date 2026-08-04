@@ -1,0 +1,7 @@
+aiogram
+fastapi
+uvicorn
+aiosqlite
+python-dotenv
+matplotlib
+pydantic
