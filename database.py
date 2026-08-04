@@ -49,11 +49,21 @@ DEFAULT_CATEGORIES = [
 _client: Optional[libsql_client.Client] = None
 
 
+def _normalize_url(url: str) -> str:
+    """libsql:// заставляет клиент идти через WebSocket, а у libsql_client
+    на некоторых региональных адресах Turso (*.aws-<region>.turso.io) это
+    падает с WSServerHandshakeError. Подключение по HTTPS работает надёжно
+    и для наших запросов полностью равнозначно."""
+    if url.startswith("libsql://"):
+        return "https://" + url[len("libsql://"):]
+    return url
+
+
 def get_client() -> libsql_client.Client:
     """Один клиент на всё время жизни приложения (переиспользуем соединение)."""
     global _client
     if _client is None:
-        kwargs = {"url": TURSO_DATABASE_URL}
+        kwargs = {"url": _normalize_url(TURSO_DATABASE_URL)}
         if TURSO_AUTH_TOKEN:
             kwargs["auth_token"] = TURSO_AUTH_TOKEN
         _client = libsql_client.create_client(**kwargs)
