@@ -2,14 +2,18 @@
 Бюджет-бот: телеграм-бот + HTTP API синхронизации с офлайн PWA.
 Запуск: python main.py
 Переменная окружения BOT_TOKEN обязательна.
+Переменная GEMINI_API_KEY опциональна — включает распознавание скриншотов.
 """
 import asyncio
+import base64
 import io
+import json
 import os
 import logging
 from datetime import datetime, date, timedelta
 from calendar import monthrange
 
+import aiohttp
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -35,6 +39,8 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("budget-bot")
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 PORT = int(os.environ.get("PORT", 8000))
 
 bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
@@ -46,11 +52,15 @@ MONTHS_RU = ["январь","февраль","март","апрель","май",
              "август","сентябрь","октябрь","ноябрь","декабрь"]
 
 
-# ---------- Состояния добавления записи ----------
+# ---------- Состояния ----------
 class AddRecord(StatesGroup):
     choosing_category = State()
     entering_amount = State()
     entering_note = State()
+
+
+class PhotoRecord(StatesGroup):
+    confirming = State()
 
 
 def type_keyboard():
@@ -82,14 +92,111 @@ def period_keyboard():
     return kb
 
 
+def history_period_keyboard():
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📅 Сегодня", callback_data="histperiod:today"),
+         InlineKeyboardButton(text="🗓 Этот месяц", callback_data="histperiod:month")],
+    ])
+    return kb
+
+
+def history_bounds(period: str):
+    today = date.today()
+    if period == "today":
+        date_from = date_to = today.isoformat()
+        title = f"История — сегодня, {today.strftime('%d.%m.%Y')}"
+    else:
+        date_from = today.replace(day=1).isoformat()
+        date_to = today.isoformat()
+        title = f"История — {MONTHS_RU[today.month-1]} {today.year}"
+    return date_from, date_to, title
+
+
+def build_history_keyboard(records, period):
+    rows = []
+    for rid, rtype, amount, category, note, rdate in records:
+        sign = "-" if rtype == "expense" else "+"
+        day_month = f"{rdate[8:10]}.{rdate[5:7]}"
+        label = f"{sign}{amount:.0f} · {category} · {day_month}"
+        rows.append([InlineKeyboardButton(text=f"🗑 {label}", callback_data=f"delrec:{rid}:{period}")])
+    if not rows:
+        rows = [[InlineKeyboardButton(text="Записей нет", callback_data="noop")]]
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def photo_confirm_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="✅ Сохранить", callback_data="photoconfirm:save")],
+        [InlineKeyboardButton(text="✏️ Изменить категорию", callback_data="photoconfirm:editcat")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="photoconfirm:cancel")],
+    ])
+
+
+def format_photo_summary(data: dict) -> str:
+    sign = "-" if data["rtype"] == "expense" else "+"
+    note = data.get("note") or ""
+    return (
+        "Распознал со скриншота:\n"
+        f"{sign}{data['amount']:.2f} — {data['category']}" + (f" ({note})" if note else "") + "\n\n"
+        "Всё верно?"
+    )
+
+
+async def analyze_receipt_image(image_bytes: bytes, categories: list[str]) -> dict | None:
+    """Отправляет фото в Gemini и просит вернуть сумму/категорию/тип строго в JSON."""
+    if not GEMINI_API_KEY:
+        return None
+    b64 = base64.b64encode(image_bytes).decode()
+    prompt = (
+        "На фото — скриншот банковского приложения или чек об операции. "
+        "Извлеки сумму операции и определи, на что она была потрачена (или откуда получена). "
+        f"Выбери наиболее подходящую категорию строго из этого списка: {', '.join(categories)}. "
+        "Если это поступление денег (зарплата, перевод на счёт, кешбэк) — type должен быть \"income\", "
+        "если списание/покупка — \"expense\". "
+        "Ответь ТОЛЬКО в виде JSON без markdown-разметки и пояснений, строго в формате: "
+        '{"amount": число, "merchant": "краткое описание на русском, 2-4 слова", '
+        '"category": "категория из списка", "type": "expense или income"}'
+    )
+    payload = {
+        "contents": [{
+            "parts": [
+                {"text": prompt},
+                {"inline_data": {"mime_type": "image/jpeg", "data": b64}},
+            ]
+        }]
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as resp:
+                if resp.status != 200:
+                    log.warning("Gemini API error %s: %s", resp.status, await resp.text())
+                    return None
+                data = await resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        if text.startswith("```"):
+            text = text.strip("`")
+            if text.lower().startswith("json"):
+                text = text[4:]
+        return json.loads(text.strip())
+    except Exception as e:
+        log.warning("Не удалось распознать скриншот: %s", e)
+        return None
+
+
 # ---------- Хэндлеры ----------
 @router.message(CommandStart())
 async def start(message: Message):
     token = await db.get_or_create_user(message.from_user.id)
     await message.answer(
         "Привет! Я помогу вести бюджет.\n\n"
-        "➕ /add — добавить доход или расход\n"
+        "➕ /add — добавить доход или расход вручную\n"
+        "📸 Просто пришли скриншот из банка — сам распознаю сумму и категорию\n"
         "📊 /stats — статистика (сегодня / месяц / графики)\n"
+        "🗒 /history — история записей, можно удалять\n"
         "🏷 /categories — список категорий\n"
         "➕🏷 /addcategory Название — добавить свою категорию (расход)\n"
         "➕🏷 /addincome Название — добавить свою категорию (доход)\n"
@@ -169,6 +276,101 @@ async def enter_note(message: Message, state: FSMContext):
         f"Записано: {sign}{data['amount']:.2f} — {data['category']}" + (f" ({note})" if note else "")
     )
     await state.clear()
+
+
+# ---------- Распознавание скриншота из банка ----------
+@router.message(F.photo)
+async def handle_photo(message: Message, state: FSMContext):
+    if not GEMINI_API_KEY:
+        await message.answer(
+            "Распознавание скриншотов пока не настроено на сервере.\n"
+            "Можно добавить запись вручную через /add."
+        )
+        return
+
+    thinking = await message.answer("Смотрю скриншот… 🔍")
+
+    photo = message.photo[-1]
+    file = await bot.get_file(photo.file_id)
+    file_io = await bot.download_file(file.file_path)
+    image_bytes = file_io.read()
+
+    cats = await db.get_categories(message.from_user.id)
+    cat_names = [c[0] for c in cats] or ["Прочее"]
+
+    result = await analyze_receipt_image(image_bytes, cat_names)
+    await thinking.delete()
+
+    if not result or "amount" not in result:
+        await message.answer(
+            "Не получилось распознать сумму на скриншоте 😕\n"
+            "Попробуй фото почётче (весь экран с суммой должен быть виден), "
+            "либо добавь запись вручную через /add."
+        )
+        return
+
+    try:
+        amount = abs(float(result["amount"]))
+    except (TypeError, ValueError):
+        await message.answer("Не разобрал сумму на скриншоте. Добавь запись вручную через /add.")
+        return
+
+    rtype = result.get("type") if result.get("type") in ("income", "expense") else "expense"
+    category = result.get("category") or "Прочее"
+    if category not in cat_names:
+        category = "Прочее"
+        await db.add_category(message.from_user.id, "Прочее", rtype)
+    merchant = (result.get("merchant") or "").strip()
+
+    await state.set_state(PhotoRecord.confirming)
+    await state.update_data(rtype=rtype, amount=amount, category=category, note=merchant)
+
+    await message.answer(format_photo_summary(await state.get_data()), reply_markup=photo_confirm_keyboard())
+
+
+@router.callback_query(PhotoRecord.confirming, F.data == "photoconfirm:save")
+async def photo_confirm_save(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    today = date.today().isoformat()
+    await db.add_record(
+        telegram_id=callback.from_user.id,
+        rtype=data["rtype"],
+        amount=data["amount"],
+        category=data["category"],
+        note=data.get("note", ""),
+        record_date=today,
+    )
+    sign = "-" if data["rtype"] == "expense" else "+"
+    note = data.get("note") or ""
+    await callback.message.edit_text(
+        f"Записано: {sign}{data['amount']:.2f} — {data['category']}" + (f" ({note})" if note else "")
+    )
+    await state.clear()
+    await callback.answer()
+
+
+@router.callback_query(PhotoRecord.confirming, F.data == "photoconfirm:editcat")
+async def photo_confirm_editcat(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    cats = await db.get_categories(callback.from_user.id, data["rtype"])
+    await callback.message.edit_text("Выбери категорию:", reply_markup=categories_keyboard(cats, prefix="photocat"))
+    await callback.answer()
+
+
+@router.callback_query(PhotoRecord.confirming, F.data.startswith("photocat:"))
+async def photo_confirm_category_chosen(callback: CallbackQuery, state: FSMContext):
+    category = callback.data.split(":", 1)[1]
+    await state.update_data(category=category)
+    data = await state.get_data()
+    await callback.message.edit_text(format_photo_summary(data), reply_markup=photo_confirm_keyboard())
+    await callback.answer()
+
+
+@router.callback_query(PhotoRecord.confirming, F.data == "photoconfirm:cancel")
+async def photo_confirm_cancel(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await callback.message.edit_text("Отменено.")
+    await callback.answer()
 
 
 @router.message(Command("categories"))
@@ -294,12 +496,43 @@ async def chart_bar(callback: CallbackQuery):
     await callback.answer()
 
 
+# ---------- История и удаление ----------
+@router.message(Command("history"))
+async def history_menu(message: Message):
+    await message.answer("За какой период показать историю?", reply_markup=history_period_keyboard())
+
+
+@router.callback_query(F.data.startswith("histperiod:"))
+async def show_history(callback: CallbackQuery):
+    period = callback.data.split(":")[1]
+    date_from, date_to, title = history_bounds(period)
+    records = await db.get_records_with_id(callback.from_user.id, date_from, date_to)
+    records = records[:25]
+    text = title + "\nНажми на запись, чтобы удалить её:"
+    await callback.message.edit_text(text, reply_markup=build_history_keyboard(records, period))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("delrec:"))
+async def delete_history_record(callback: CallbackQuery):
+    _, rid, period = callback.data.split(":")
+    await db.delete_record(callback.from_user.id, int(rid))
+    date_from, date_to, title = history_bounds(period)
+    records = await db.get_records_with_id(callback.from_user.id, date_from, date_to)
+    records = records[:25]
+    text = title + "\nЗапись удалена ✓\nНажми на запись, чтобы удалить её:"
+    await callback.message.edit_text(text, reply_markup=build_history_keyboard(records, period))
+    await callback.answer("Удалено")
+
+
+@router.callback_query(F.data == "noop")
+async def noop_cb(callback: CallbackQuery):
+    await callback.answer()
+
+
 # ---------- HTTP API для PWA ----------
 api = FastAPI(title="Budget Bot Sync API")
 
-# PWA будет на другом домене (Netlify/Vercel/GitHub Pages), чем сам бот на Render —
-# без CORS браузер заблокирует запросы к /sync ещё до того, как они дойдут до сервера.
-# Доступ и так защищён проверкой telegram_id+token внутри каждого эндпоинта.
 api.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -310,11 +543,11 @@ api.add_middleware(
 
 class SyncRecord(BaseModel):
     client_id: str
-    type: str  # income | expense
+    type: str
     amount: float
     category: str
     note: str = ""
-    record_date: str  # YYYY-MM-DD
+    record_date: str
 
 
 class SyncPayload(BaseModel):
