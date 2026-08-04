@@ -1,7 +1,6 @@
 aiogram
+aiosqlite
 fastapi
 uvicorn
-aiosqlite
-python-dotenv
-matplotlib
 pydantic
+matplotlib
