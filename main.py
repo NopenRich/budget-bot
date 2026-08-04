@@ -40,7 +40,7 @@ log = logging.getLogger("budget-bot")
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 PORT = int(os.environ.get("PORT", 8000))
 
 bot = Bot(token=BOT_TOKEN) if BOT_TOKEN else None
