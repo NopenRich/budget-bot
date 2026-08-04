@@ -206,6 +206,28 @@ async def get_records(telegram_id: int, date_from: str, date_to: str):
     return [tuple(row) for row in rs.rows]
 
 
+async def get_records_with_id(telegram_id: int, date_from: str, date_to: str):
+    """Как get_records, но с id — нужен, чтобы можно было удалить конкретную запись."""
+    client = get_client()
+    rs = await client.execute(
+        """SELECT id, type, amount, category, note, record_date
+           FROM records
+           WHERE telegram_id=? AND record_date BETWEEN ? AND ?
+           ORDER BY record_date DESC, id DESC""",
+        [telegram_id, date_from, date_to],
+    )
+    return [tuple(row) for row in rs.rows]
+
+
+async def delete_record(telegram_id: int, record_id: int) -> bool:
+    client = get_client()
+    rs = await client.execute(
+        "DELETE FROM records WHERE id=? AND telegram_id=?",
+        [record_id, telegram_id],
+    )
+    return rs.rows_affected > 0
+
+
 async def get_all_records_since(telegram_id: int, since_iso: str):
     """Для отдачи PWA всех записей, добавленных из бота (двусторонняя синхронизация)."""
     client = get_client()
