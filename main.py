@@ -25,6 +25,7 @@ from aiogram.types import (
 )
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
@@ -295,6 +296,16 @@ async def chart_bar(callback: CallbackQuery):
 
 # ---------- HTTP API для PWA ----------
 api = FastAPI(title="Budget Bot Sync API")
+
+# PWA будет на другом домене (Netlify/Vercel/GitHub Pages), чем сам бот на Render —
+# без CORS браузер заблокирует запросы к /sync ещё до того, как они дойдут до сервера.
+# Доступ и так защищён проверкой telegram_id+token внутри каждого эндпоинта.
+api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class SyncRecord(BaseModel):
