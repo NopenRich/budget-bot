@@ -1,0 +1,15 @@
+{
+  "name": "Бюджет — офлайн учёт",
+  "short_name": "Бюджет",
+  "description": "Учёт доходов и расходов без интернета, с синхронизацией в Telegram",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#12151A",
+  "theme_color": "#12151A",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

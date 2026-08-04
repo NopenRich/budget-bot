@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Бюджет — офлайн учёт</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#12151A">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">₽</span>
+    <span class="brand-name">Бюджет</span>
+  </div>
+  <div id="sync-indicator" class="sync-indicator offline">офлайн</div>
+</header>
+
+<main id="app">
+
+  <!-- ДОБАВИТЬ -->
+  <section id="tab-add" class="tab active">
+    <div class="type-toggle">
+      <button class="type-btn active" data-type="expense">Расход</button>
+      <button class="type-btn" data-type="income">Доход</button>
+    </div>
+
+    <div class="amount-field">
+      <span class="amount-sign" id="amount-sign">−</span>
+      <input type="text" inputmode="decimal" id="amount-input" placeholder="0" autocomplete="off">
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Категория</label>
+      <div id="category-chips" class="chips"></div>
+      <div class="new-category-row">
+        <input type="text" id="new-category-input" placeholder="+ своя категория">
+        <button id="new-category-btn">Добавить</button>
+      </div>
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Дата</label>
+      <input type="date" id="date-input">
+    </div>
+
+    <div class="field-block">
+      <label class="field-label">Комментарий</label>
+      <input type="text" id="note-input" placeholder="необязательно">
+    </div>
+
+    <button id="save-record-btn" class="primary-btn">Записать</button>
+    <div id="save-toast" class="toast"></div>
+  </section>
+
+  <!-- СЕГОДНЯ / МЕСЯЦ -->
+  <section id="tab-stats" class="tab">
+    <div class="period-toggle">
+      <button class="period-btn active" data-period="today">Сегодня</button>
+      <button class="period-btn" data-period="month">Месяц</button>
+    </div>
+
+    <div class="balance-card">
+      <div class="balance-row">
+        <div class="balance-item">
+          <div class="balance-label">доходы</div>
+          <div class="balance-value income" id="stat-income">0</div>
+        </div>
+        <div class="balance-item">
+          <div class="balance-label">расходы</div>
+          <div class="balance-value expense" id="stat-expense">0</div>
+        </div>
+      </div>
+      <div class="divider-dashed"></div>
+      <div class="balance-total">
+        <span class="balance-label">баланс</span>
+        <span class="balance-value" id="stat-balance">0</span>
+      </div>
+    </div>
+
+    <div id="month-heatmap" class="heatmap"></div>
+
+    <ul id="records-list" class="records-list"></ul>
+  </section>
+
+  <!-- ГРАФИКИ -->
+  <section id="tab-charts" class="tab">
+    <label class="field-label">Месяц</label>
+    <input type="month" id="chart-month-input">
+    <div class="chart-card">
+      <div class="chart-title">По категориям (расход)</div>
+      <canvas id="pie-chart" height="240"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">По дням (расход)</div>
+      <canvas id="bar-chart" height="200"></canvas>
+    </div>
+  </section>
+
+  <!-- НАСТРОЙКИ -->
+  <section id="tab-settings" class="tab">
+    <div class="field-block">
+      <label class="field-label">Адрес сервера бота</label>
+      <input type="text" id="settings-url" placeholder="https://your-bot.onrender.com">
+    </div>
+    <div class="field-block">
+      <label class="field-label">Telegram ID</label>
+      <input type="text" id="settings-tgid" inputmode="numeric" placeholder="из команды /token в боте">
+    </div>
+    <div class="field-block">
+      <label class="field-label">Токен синхронизации</label>
+      <input type="text" id="settings-token" placeholder="из команды /token в боте">
+    </div>
+    <button id="save-settings-btn" class="primary-btn">Сохранить</button>
+    <button id="sync-now-btn" class="secondary-btn">Синхронизировать сейчас</button>
+    <div id="settings-status" class="settings-status"></div>
+
+    <div class="divider-dashed"></div>
+    <button id="reset-local-btn" class="secondary-btn" style="border-color: var(--expense); color: var(--expense);">
+      Очистить данные на телефоне и подгрузить заново с сервера
+    </button>
+    <p class="hint" style="margin-top: 8px;">
+      Используй эту кнопку, если на телефоне остались тестовые/лишние записи,
+      которые ты уже удалил через бота (командой /history) — она сотрёт
+      локальные записи и скачает актуальные с сервера заново.
+    </p>
+
+    <div class="divider-dashed"></div>
+    <p class="hint">
+      Все записи хранятся на телефоне и работают без интернета.
+      Когда появится сеть — нажми «Синхронизировать сейчас», или это произойдёт
+      автоматически при следующем запуске онлайн.
+    </p>
+  </section>
+
+</main>
+
+<nav class="tabbar">
+  <button class="tabbtn active" data-tab="tab-add">
+    <span class="tabicon">＋</span><span>Добавить</span>
+  </button>
+  <button class="tabbtn" data-tab="tab-stats">
+    <span class="tabicon">▤</span><span>Итоги</span>
+  </button>
+  <button class="tabbtn" data-tab="tab-charts">
+    <span class="tabicon">◔</span><span>Графики</span>
+  </button>
+  <button class="tabbtn" data-tab="tab-settings">
+    <span class="tabicon">⚙</span><span>Настройки</span>
+  </button>
+</nav>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

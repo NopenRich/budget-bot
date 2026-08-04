@@ -1,0 +1,354 @@
+:root {
+  --bg: #12151A;
+  --surface: #1B1F27;
+  --surface-2: #232833;
+  --line: #2C3240;
+  --text: #E7E9ED;
+  --text-muted: #8A93A3;
+  --income: #3FA796;
+  --expense: #E4572E;
+  --accent: #F2C94C;
+  --radius: 14px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", "JetBrains Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  padding-bottom: 84px;
+  min-height: 100vh;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 10px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand-mark {
+  font-family: var(--mono);
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+}
+.brand-name {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sync-indicator {
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  color: var(--text-muted);
+}
+.sync-indicator.online { color: var(--income); border-color: var(--income); }
+.sync-indicator.offline { color: var(--text-muted); }
+.sync-indicator.pending { color: var(--accent); border-color: var(--accent); }
+
+#app { padding: 8px 20px 20px; max-width: 480px; margin: 0 auto; }
+
+.tab { display: none; animation: fadein .15s ease; }
+.tab.active { display: block; }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- Добавление записи ---------- */
+.type-toggle {
+  display: flex;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin: 12px 0 24px;
+}
+.type-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.type-btn.active[data-type="expense"] { background: var(--expense); color: #1B0E08; }
+.type-btn.active[data-type="income"] { background: var(--income); color: #05231F; }
+
+.amount-field {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 0 26px;
+  border-bottom: 1px dashed var(--line);
+  margin-bottom: 22px;
+}
+.amount-sign {
+  font-family: var(--mono);
+  font-size: 34px;
+  color: var(--expense);
+}
+#amount-input {
+  font-family: var(--mono);
+  font-size: 48px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  width: 100%;
+  max-width: 220px;
+  text-align: left;
+  outline: none;
+}
+
+.field-block { margin-bottom: 20px; }
+.field-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.chip {
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.chip.selected { background: var(--accent); color: #1B1500; border-color: var(--accent); }
+
+.new-category-row { display: flex; gap: 8px; }
+.new-category-row input {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.new-category-row button {
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+input[type="text"], input[type="date"], input[type="month"] {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: var(--sans);
+  outline: none;
+}
+input[type="date"], input[type="month"] { font-family: var(--mono); color-scheme: dark; }
+
+.primary-btn {
+  width: 100%;
+  padding: 15px;
+  background: var(--accent);
+  color: #1B1500;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+}
+.secondary-btn {
+  width: 100%;
+  padding: 13px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+
+.toast {
+  text-align: center;
+  font-size: 13px;
+  color: var(--income);
+  height: 20px;
+  margin-top: 10px;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.toast.show { opacity: 1; }
+
+/* ---------- Итоги ---------- */
+.period-toggle {
+  display: flex;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin: 12px 0 18px;
+}
+.period-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.period-btn.active { background: var(--surface-2); color: var(--text); }
+
+.balance-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+.balance-row { display: flex; justify-content: space-between; }
+.balance-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+.balance-value {
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+.balance-value.income { color: var(--income); }
+.balance-value.expense { color: var(--expense); }
+.divider-dashed { border-top: 1px dashed var(--line); margin: 14px 0; }
+.balance-total { display: flex; justify-content: space-between; align-items: baseline; }
+.balance-total .balance-value { font-size: 26px; }
+
+.heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.heat-cell {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.records-list { list-style: none; padding: 0; margin: 0; }
+.record-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--line);
+}
+.record-info { display: flex; flex-direction: column; }
+.record-cat { font-size: 14px; }
+.record-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.record-amount { font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.record-amount.income { color: var(--income); }
+.record-amount.expense { color: var(--expense); }
+.record-item.unsynced .record-cat::after {
+  content: " ·"; color: var(--accent);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 30px 0;
+}
+
+/* ---------- Графики ---------- */
+.chart-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 16px;
+}
+.chart-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+/* ---------- Настройки ---------- */
+.settings-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  min-height: 16px;
+}
+.hint { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* ---------- Таббар ---------- */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+  z-index: 10;
+}
+.tabbtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.tabbtn.active { color: var(--accent); }
+.tabicon { font-size: 18px; line-height: 1; }
